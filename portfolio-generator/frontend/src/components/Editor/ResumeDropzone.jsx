@@ -40,44 +40,7 @@ export default function ResumeDropzone({ onParsedSections, isOpen, onClose }) {
       }
     } catch (err) {
       console.error('Resume parsing failed:', err);
-      // Fallback structured extraction so user is never stuck
-      const mockParsed = {
-        profile: {
-          name: 'Alex Rivera',
-          target_role: 'Lead Full-Stack Engineer',
-          email: 'alex.rivera@example.com',
-          phone: '+1 (555) 234-5678',
-          location: 'San Francisco, CA',
-          bio: pastedText.slice(0, 200) || 'Experienced software engineer focused on building robust distributed systems.',
-          github: 'https://github.com/example',
-          linkedin: 'https://linkedin.com/in/example',
-          website: 'https://alexrivera.dev',
-        },
-        experience: [
-          {
-            company: 'TechFlow Solutions',
-            role: 'Senior Software Engineer',
-            start_date: '2022',
-            end_date: 'Present',
-            description: 'Led architecture of cloud-native analytics platform.',
-            highlights: [
-              'Scaled event ingestion pipeline to 15,000 events/sec with sub-50ms latency.',
-              'Mentored 6 junior engineers and instituted automated integration test standards.'
-            ],
-          },
-        ],
-        projects: [
-          {
-            title: 'Real-Time Edge Gateway',
-            description: 'Low-latency reverse proxy and API gateway written in Go and React.',
-            technologies: ['Go', 'React', 'Docker', 'Tailwind CSS'],
-            link: 'https://github.com/example/gateway',
-          },
-        ],
-        skills: ['Python', 'Django', 'React', 'TypeScript', 'Docker', 'PostgreSQL', 'Tailwind CSS', 'GraphQL'],
-      };
-      onParsedSections(mockParsed);
-      onClose();
+      setError(err.message || 'Resume parsing failed. Please check the file and try again.');
     } finally {
       setLoading(false);
     }
@@ -149,7 +112,7 @@ export default function ResumeDropzone({ onParsedSections, isOpen, onClose }) {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".txt,.pdf,.doc,.docx"
+              accept=".txt,.pdf,.docx"
               onChange={handleFileChange}
               className="hidden"
             />
@@ -158,7 +121,7 @@ export default function ResumeDropzone({ onParsedSections, isOpen, onClose }) {
               Drag & drop your resume file here, or{' '}
               <span className="text-accent-blue underline">browse</span>
             </p>
-            <p className="text-[11px] text-border-gray mt-1">Supports TXT, PDF, DOCX</p>
+            <p className="text-[11px] text-border-gray mt-1">Supports TXT, PDF, and DOCX files up to 5 MB</p>
           </div>
 
           <div className="flex items-center space-x-2">

@@ -84,6 +84,7 @@ export default function App() {
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
   const [authForm, setAuthForm] = useState({ username: '', password: '', email: '', target_role: '' });
   const [authError, setAuthError] = useState(null);
+  const [operationError, setOperationError] = useState(null);
 
   // Check URL pathname for public portfolio routing: /p/:slug
   const path = window.location.pathname;
@@ -102,8 +103,15 @@ export default function App() {
         try {
           const me = await api.getMe();
           setUser(me);
+          try {
+            const portfolios = await api.listPortfolios();
+            if (portfolios.length > 0) setPortfolio(portfolios[0]);
+          } catch (err) {
+            setOperationError(`Could not load saved portfolios: ${err.message}`);
+          }
         } catch {
           api.logout();
+          setUser(null);
         }
       }
     };
@@ -111,56 +119,85 @@ export default function App() {
   }, []);
 
   const handleSave = async () => {
+    setOperationError(null);
+    if (!user) {
+      setAuthMode('login');
+      setAuthModalOpen(true);
+      setOperationError('Sign in to save your portfolio to your account.');
+      return;
+    }
+
     setIsSaving(true);
     try {
-      if (user && portfolio.id && portfolio.id !== 'local-draft') {
+      if (portfolio.id && portfolio.id !== 'local-draft' && portfolio.slug) {
         const updated = await api.updatePortfolio(portfolio.slug, portfolio);
         setPortfolio(updated);
-      } else if (user) {
+      } else {
         const created = await api.createPortfolio(portfolio);
         setPortfolio(created);
       }
     } catch (err) {
-      console.warn('Backend save bypassed, persisted to local state:', err.message);
+      setOperationError(`Save failed: ${err.message}`);
     } finally {
-      setTimeout(() => setIsSaving(false), 400);
+      setIsSaving(false);
     }
   };
 
   const handlePublishToggle = async () => {
-    const nextState = !portfolio.is_published;
-    const updated = { ...portfolio, is_published: nextState };
-    setPortfolio(updated);
+    setOperationError(null);
+    if (!user) {
+      setAuthMode('login');
+      setAuthModalOpen(true);
+      setOperationError('Sign in to publish your portfolio.');
+      return;
+    }
 
-    if (user && portfolio.slug) {
-      try {
-        await api.updatePortfolio(portfolio.slug, { is_published: nextState });
-      } catch (err) {
-        console.warn('Backend sync error:', err.message);
-      }
+    const nextState = !portfolio.is_published;
+    try {
+      const updated = portfolio.id && portfolio.id !== 'local-draft' && portfolio.slug
+        ? await api.updatePortfolio(portfolio.slug, { is_published: nextState })
+        : await api.createPortfolio({ ...portfolio, is_published: nextState });
+      setPortfolio(updated);
+    } catch (err) {
+      setOperationError(`Publish failed: ${err.message}`);
     }
   };
 
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError(null);
+    let response;
     try {
       if (authMode === 'login') {
-        const res = await api.login(authForm.username, authForm.password);
-        setUser(res.user);
+        response = await api.login(authForm.username, authForm.password);
       } else {
-        const res = await api.register(authForm);
-        setUser(res.user);
+        response = await api.register(authForm);
       }
+      setUser(response.user);
       setAuthModalOpen(false);
+      setAuthError(null);
     } catch (err) {
       setAuthError(err.message || 'Authentication failed. Please verify credentials.');
+      return;
+    }
+
+    setOperationError(null);
+    try {
+      const portfolios = await api.listPortfolios();
+      if (portfolios.length > 0) {
+        setPortfolio(portfolios[0]);
+      } else {
+        setPortfolio(await api.createPortfolio(portfolio));
+      }
+    } catch (err) {
+      setOperationError(`Account connected, but portfolio sync failed: ${err.message}`);
     }
   };
 
   const handleLogout = () => {
     api.logout();
     setUser(null);
+    setOperationError(null);
   };
 
   // If visiting public path /p/:slug directly, show clean public view
@@ -179,6 +216,12 @@ export default function App() {
         onLogout={handleLogout}
         onOpenAuth={() => setAuthModalOpen(true)}
       />
+
+      {operationError && (
+        <div role="alert" className="px-6 py-2 text-sm text-red-700 bg-red-50 border-b border-red-200">
+          {operationError}
+        </div>
+      )}
 
       <SplitWorkspace
         portfolio={portfolio}

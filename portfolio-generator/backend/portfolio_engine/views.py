@@ -1,20 +1,19 @@
-from rest_framework import status, permissions
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.authtoken.models import Token
 from django.shortcuts import get_object_or_404
+from rest_framework import permissions, status
+from rest_framework.authtoken.models import Token
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import Portfolio, UserProfile
 from .serializers import (
-    RegisterSerializer,
+    AIEnhanceRequestSerializer,
     LoginSerializer,
-    UserProfileSerializer,
     PortfolioSerializer,
     PublicPortfolioSerializer,
-    AIEnhanceRequestSerializer,
-    AIResumeParseRequestSerializer,
+    RegisterSerializer,
+    UserProfileSerializer,
 )
-from .services import parse_resume_text, enhance_description
+from .services import enhance_description, extract_resume_text, parse_resume_text
 
 
 class HealthCheckView(APIView):
@@ -110,7 +109,7 @@ class AIResumeParseView(APIView):
     MAX_TEXT_LENGTH = 100000  # 100k characters max
 
     def post(self, request):
-        # Support text in JSON payload or uploaded text/plain file
+        # Support text in JSON payload or uploaded TXT, PDF, and DOCX files.
         resume_text = request.data.get('resume_text', '')
         if not resume_text and 'file' in request.FILES:
             uploaded_file = request.FILES['file']
@@ -120,10 +119,15 @@ class AIResumeParseView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             try:
-                resume_text = uploaded_file.read().decode('utf-8', errors='ignore')
-            except Exception as e:
+                resume_text = extract_resume_text(uploaded_file)
+            except ValueError as e:
                 return Response(
-                    {"error": f"Failed to read file: {str(e)}"},
+                    {"error": str(e)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            except Exception:
+                return Response(
+                    {"error": "Could not extract text from the uploaded file."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 

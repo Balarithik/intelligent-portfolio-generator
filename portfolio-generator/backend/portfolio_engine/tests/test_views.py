@@ -1,9 +1,14 @@
-from django.urls import reverse
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
 from rest_framework.authtoken.models import Token
-from portfolio_engine.models import Portfolio, UserProfile
+from rest_framework.test import APITestCase
+
+from portfolio_engine.models import Portfolio
+
 
 class ViewsTestCase(APITestCase):
     def setUp(self):
@@ -145,7 +150,8 @@ class ViewsTestCase(APITestCase):
             "raw_text": "Led backend refactor to improve database queries.",
             "target_role": "Principal Database Architect"
         }
-        response = self.client.post(url, payload, format='json')
+        with patch('portfolio_engine.services.get_genai_client', return_value=None):
+            response = self.client.post(url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("enhanced_text", response.data)
         self.assertTrue(len(response.data["enhanced_text"]) > 0)
@@ -155,8 +161,28 @@ class ViewsTestCase(APITestCase):
         payload = {
             "resume_text": "Alex Morgan\nSenior Cloud Architect\nSpecializing in high throughput architectures."
         }
-        response = self.client.post(url, payload, format='json')
+        with patch('portfolio_engine.services.get_genai_client', return_value=None):
+            response = self.client.post(url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("sections", response.data)
         self.assertIn("profile", response.data["sections"])
+
+    def test_ai_parse_resume_text_file_upload(self):
+        url = reverse('ai-parse-resume')
+        uploaded_file = SimpleUploadedFile(
+            'resume.txt',
+            b'Jordan Hayes\nPlatform Engineer\nSkills\nPython, Django',
+            content_type='text/plain',
+        )
+        with patch('portfolio_engine.services.get_genai_client', return_value=None):
+            response = self.client.post(url, {'file': uploaded_file}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['sections']['profile']['name'], 'Jordan Hayes')
+        self.assertEqual(response.data['sections']['skills'], ['Python', 'Django'])
+
+    def test_ai_parse_resume_rejects_unsupported_file(self):
+        url = reverse('ai-parse-resume')
+        uploaded_file = SimpleUploadedFile('resume.doc', b'legacy format')
+        response = self.client.post(url, {'file': uploaded_file}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 

@@ -1,13 +1,15 @@
 import json
 from unittest.mock import MagicMock, patch
+
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+
 from portfolio_engine.services import (
-    parse_resume_text,
     enhance_description,
-    ParsedResumeSchema,
-    ParsedExperience,
-    ParsedProject,
+    extract_resume_text,
+    parse_resume_text,
 )
+
 
 class ServicesTestCase(TestCase):
     def test_parse_resume_empty_raises(self):
@@ -87,14 +89,52 @@ class ServicesTestCase(TestCase):
 
     @patch('portfolio_engine.services.get_genai_client', return_value=None)
     def test_fallback_heuristic_when_gemini_unconfigured(self, _):
-        # Test fallback parser
-        parsed = parse_resume_text("Sarah Connor\nCybernetics Specialist\nDefending human systems.")
+        parsed = parse_resume_text(
+            "Sarah Connor\nCybernetics Specialist\nDefending human systems.\n\n"
+            "Skills\nPython, Django\n\n"
+            "Experience\nSoftware Engineer | Example Co | 2021 - Present\n"
+            "Built reliable systems.\n- Reduced latency by 30%\n\n"
+            "Projects\nTelemetry API: Monitoring service\n- Built with Python and Django"
+        )
         self.assertIn("profile", parsed)
         self.assertEqual(parsed["profile"]["name"], "Sarah Connor")
-        self.assertGreater(len(parsed["skills"]), 0)
+        self.assertEqual(parsed["profile"]["target_role"], "Cybernetics Specialist")
+        self.assertEqual(parsed["profile"]["bio"], "Defending human systems.")
+        self.assertEqual(parsed["skills"], ["Python", "Django"])
+        self.assertEqual(parsed["experience"][0]["role"], "Software Engineer")
+        self.assertEqual(parsed["experience"][0]["company"], "Example Co")
+        self.assertEqual(parsed["experience"][0]["highlights"], ["Reduced latency by 30%"])
+        self.assertEqual(parsed["projects"][0]["title"], "Telemetry API")
+        self.assertIn("Monitoring service", parsed["projects"][0]["description"])
 
         # Test fallback enhancer
         enhanced = enhance_description("built an api", "Backend Engineer")
         self.assertTrue(enhanced.startswith("•"))
         self.assertIn("Backend Engineer", enhanced)
+
+    def test_extract_resume_text_file(self):
+        uploaded_file = SimpleUploadedFile('resume.txt', b'Jane Doe\nEngineer')
+        self.assertEqual(extract_resume_text(uploaded_file), 'Jane Doe\nEngineer')
+
+    @patch('pypdf.PdfReader')
+    def test_extract_resume_pdf_file(self, mock_pdf_reader):
+        mock_pdf_reader.return_value.is_encrypted = False
+        mock_pdf_reader.return_value.pages = [
+            MagicMock(extract_text=lambda: 'Jane Doe'),
+            MagicMock(extract_text=lambda: 'Software Engineer'),
+        ]
+        uploaded_file = SimpleUploadedFile('resume.pdf', b'pdf data')
+        self.assertEqual(extract_resume_text(uploaded_file), 'Jane Doe\nSoftware Engineer')
+
+    @patch('docx.Document')
+    def test_extract_resume_docx_file(self, mock_document):
+        mock_document.return_value.paragraphs = [MagicMock(text='Jane Doe')]
+        mock_document.return_value.tables = []
+        uploaded_file = SimpleUploadedFile('resume.docx', b'docx data')
+        self.assertEqual(extract_resume_text(uploaded_file), 'Jane Doe')
+
+    def test_extract_resume_rejects_unsupported_file(self):
+        uploaded_file = SimpleUploadedFile('resume.doc', b'legacy format')
+        with self.assertRaisesMessage(ValueError, 'Unsupported file type'):
+            extract_resume_text(uploaded_file)
 

@@ -1,7 +1,9 @@
-from rest_framework import serializers
-from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
-from .models import UserProfile, Portfolio
+from django.contrib.auth.models import User
+from rest_framework import serializers
+
+from .models import Portfolio, UserProfile
+
 
 class UserProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source="user.username", read_only=True)

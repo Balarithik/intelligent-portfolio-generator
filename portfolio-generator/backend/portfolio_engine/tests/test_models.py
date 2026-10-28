@@ -1,6 +1,8 @@
-from django.test import TestCase
 from django.contrib.auth.models import User
-from portfolio_engine.models import UserProfile, Portfolio
+from django.test import TestCase
+
+from portfolio_engine.models import Portfolio, UserProfile
+
 
 class ModelTestCase(TestCase):
     def setUp(self):

@@ -1,11 +1,55 @@
-import json
 import logging
 import os
+import re
+from io import BytesIO
 from typing import List, Optional
-from pydantic import BaseModel, Field
+
 from django.conf import settings
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+
+def extract_resume_text(uploaded_file) -> str:
+    """Extract text from the resume formats accepted by the upload UI."""
+    file_name = uploaded_file.name.lower()
+    file_data = uploaded_file.read()
+
+    if file_name.endswith('.txt'):
+        try:
+            return file_data.decode('utf-8-sig')
+        except UnicodeDecodeError as exc:
+            raise ValueError('The text file must use UTF-8 encoding.') from exc
+
+    if file_name.endswith('.pdf'):
+        from pypdf import PdfReader
+
+        try:
+            reader = PdfReader(BytesIO(file_data))
+            if reader.is_encrypted:
+                raise ValueError('Password-protected PDF files are not supported.')
+            return '\n'.join(page.extract_text() or '' for page in reader.pages)
+        except ValueError:
+            raise
+        except Exception as exc:
+            raise ValueError('Could not read this PDF file.') from exc
+
+    if file_name.endswith('.docx'):
+        from docx import Document
+
+        try:
+            document = Document(BytesIO(file_data))
+            paragraphs = [paragraph.text for paragraph in document.paragraphs]
+            table_rows = [
+                ' | '.join(cell.text for cell in row.cells)
+                for table in document.tables
+                for row in table.rows
+            ]
+            return '\n'.join(paragraphs + table_rows)
+        except Exception as exc:
+            raise ValueError('Could not read this DOCX file.') from exc
+
+    raise ValueError('Unsupported file type. Upload a TXT, PDF, or DOCX resume.')
 
 # Pydantic Schemas for Structured Output
 class ParsedExperience(BaseModel):
@@ -50,7 +94,7 @@ def get_genai_client():
 
 def parse_resume_text(resume_text: str) -> dict:
     """
-    Parses unformatted resume text into structured portfolio sections using Gemini 2.0 Flash
+    Parses resume text into structured portfolio sections using the configured Gemini model
     with Pydantic structured output.
     """
     if not resume_text or not resume_text.strip():
@@ -71,7 +115,7 @@ def parse_resume_text(resume_text: str) -> dict:
             )
 
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model=settings.GEMINI_MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
@@ -120,7 +164,7 @@ def enhance_description(raw_text: str, target_role: str) -> str:
             prompt = f"Target Role: {target_role}\n\nDraft Content to Enhance:\n{raw_text}"
 
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model=settings.GEMINI_MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
@@ -167,47 +211,141 @@ def _format_to_portfolio_sections(parsed_data: dict) -> dict:
 
 
 def _heuristic_resume_parser(text: str) -> dict:
-    """
-    Basic deterministic parser fallback when Gemini is offline.
-    """
+    """Extract conservative profile details when Gemini is unavailable."""
     lines = [line.strip() for line in text.split('\n') if line.strip()]
-    name = lines[0] if lines else "Jane Doe"
-    target_role = lines[1] if len(lines) > 1 else "Senior Software Engineer"
-    summary = lines[2] if len(lines) > 2 else "Passionate engineer delivering high-scale software solutions."
+    headings = {
+        'summary', 'professional summary', 'about', 'objective',
+        'experience', 'work experience', 'professional experience', 'employment history',
+        'projects', 'selected projects', 'skills', 'technical skills', 'technologies',
+        'education', 'certifications',
+    }
+    sections = {}
+    current_section = None
+    preamble = []
+    for line in lines:
+        heading = line.rstrip(':').strip().lower()
+        if heading in headings:
+            current_section = heading
+            sections.setdefault(current_section, [])
+        elif current_section:
+            sections[current_section].append(line)
+        else:
+            preamble.append(line)
+
+    contact_lines = '\n'.join(lines)
+    email_match = re.search(r'[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}', contact_lines)
+    phone_match = re.search(r'\+?[\d(][\d().\-\s]{7,}\d', contact_lines)
+    urls = re.findall(r'https?://\S+', contact_lines)
+    name = preamble[0] if preamble else ''
+    remaining_preamble = preamble[1:]
+    target_role = next(
+        (line for line in remaining_preamble if not re.search(r'@|https?://|\d{3}', line)),
+        '',
+    )
+    summary_lines = sections.get('summary') or sections.get('professional summary') or sections.get('about') or sections.get('objective')
+    if not summary_lines:
+        summary_lines = [line for line in remaining_preamble if line != target_role]
+    summary = ' '.join(summary_lines).strip()
+
+    skills_lines = sections.get('skills') or sections.get('technical skills') or sections.get('technologies') or []
+    skills = []
+    for line in skills_lines:
+        skills.extend(skill.strip(' •-*') for skill in re.split(r'[,;|]', line) if skill.strip(' •-*'))
+    if not skills:
+        known_skills = (
+            'Python', 'JavaScript', 'TypeScript', 'Java', 'C++', 'C#', 'Go', 'Rust',
+            'React', 'Django', 'Node.js', 'PostgreSQL', 'MySQL', 'AWS', 'Azure',
+            'GCP', 'Docker', 'Kubernetes', 'Terraform', 'HTML', 'CSS',
+        )
+        lowered_text = contact_lines.lower()
+        skills = [skill for skill in known_skills if skill.lower() in lowered_text]
+
+    experience_lines = (
+        sections.get('experience')
+        or sections.get('work experience')
+        or sections.get('professional experience')
+        or sections.get('employment history')
+        or []
+    )
+    experience = []
+    current_experience = None
+    date_range = re.compile(
+        r'(?P<start>(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+)?(?:19|20)\d{2})'
+        r'\s*(?:-|–|—|to)\s*'
+        r'(?P<end>(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+)?(?:19|20)\d{2}|Present|Current)',
+        re.IGNORECASE,
+    )
+    for line in experience_lines:
+        is_bullet = bool(re.match(r'^\s*[•*\-]', line))
+        cleaned = re.sub(r'^\s*[•*\-]\s*', '', line).strip()
+        date_match = date_range.search(cleaned)
+        is_entry = date_match is not None or not is_bullet and current_experience is None
+        if is_entry:
+            if current_experience:
+                experience.append(current_experience)
+            header = date_range.sub('', cleaned).strip(' ,|()[]')
+            parts = re.split(r'\s+(?:\||@|at)\s+', header, maxsplit=1, flags=re.IGNORECASE)
+            current_experience = {
+                'role': parts[0].strip() if parts else '',
+                'company': parts[1].strip() if len(parts) > 1 else '',
+                'start_date': date_match.group('start') if date_match else '',
+                'end_date': date_match.group('end') if date_match else '',
+                'description': '',
+                'highlights': [],
+            }
+        elif current_experience and cleaned:
+            if is_bullet:
+                current_experience['highlights'].append(cleaned)
+            elif not current_experience['description']:
+                current_experience['description'] = cleaned
+            else:
+                current_experience['highlights'].append(cleaned)
+    if current_experience:
+        experience.append(current_experience)
+
+    project_lines = sections.get('projects') or sections.get('selected projects') or []
+    projects = []
+    current_project = None
+    for line in project_lines:
+        is_bullet = bool(re.match(r'^\s*[•*\-]', line))
+        cleaned = re.sub(r'^\s*[•*\-]\s*', '', line).strip()
+        if not cleaned:
+            continue
+        if not current_project or not is_bullet and ':' in cleaned:
+            if current_project:
+                projects.append(current_project)
+            title, separator, description = cleaned.partition(':')
+            current_project = {
+                'title': title.strip(),
+                'description': description.strip() if separator else '',
+                'technologies': [],
+                'link': '',
+            }
+        elif is_bullet and not current_project['description']:
+            current_project['description'] = cleaned
+        elif is_bullet:
+            current_project['description'] = f"{current_project['description']} {cleaned}".strip()
+        else:
+            current_project['description'] = f"{current_project['description']} {cleaned}".strip()
+    if current_project:
+        projects.append(current_project)
+
+    profile = {
+        'name': name,
+        'target_role': target_role,
+        'email': email_match.group(0) if email_match else '',
+        'phone': phone_match.group(0).strip() if phone_match else '',
+        'location': '',
+        'bio': summary or text.strip(),
+        'github': next((url.rstrip('.,') for url in urls if 'github.com' in url.lower()), ''),
+        'linkedin': next((url.rstrip('.,') for url in urls if 'linkedin.com' in url.lower()), ''),
+        'website': next((url.rstrip('.,') for url in urls if 'github.com' not in url.lower() and 'linkedin.com' not in url.lower()), ''),
+    }
 
     return {
-        "profile": {
-            "name": name,
-            "target_role": target_role,
-            "email": "hello@example.com",
-            "phone": "+1 (555) 019-2834",
-            "location": "San Francisco, CA",
-            "bio": summary,
-            "github": "https://github.com",
-            "linkedin": "https://linkedin.com",
-            "website": "https://example.com",
-        },
-        "experience": [
-            {
-                "company": "Tech Innovations Inc.",
-                "role": target_role,
-                "start_date": "2021",
-                "end_date": "Present",
-                "description": "Architected cloud-native services and directed cross-functional delivery.",
-                "highlights": [
-                    "Engineered distributed microservices handling 25M+ daily requests with 99.99% uptime.",
-                    "Reduced CI/CD build and deployment duration by 45% through uv and container caching."
-                ]
-            }
-        ],
-        "projects": [
-            {
-                "title": "Cloud Platform Orchestrator",
-                "description": "High-throughput cluster orchestration dashboard built with React and Python.",
-                "technologies": ["Python", "Django", "React", "Docker", "Tailwind CSS"],
-                "link": "https://github.com/example/orchestrator"
-            }
-        ],
-        "skills": ["Python", "Django", "React", "Tailwind CSS", "Docker", "PostgreSQL", "System Architecture", "REST APIs"],
+        'profile': profile,
+        'experience': experience,
+        'projects': projects,
+        'skills': skills,
     }
 

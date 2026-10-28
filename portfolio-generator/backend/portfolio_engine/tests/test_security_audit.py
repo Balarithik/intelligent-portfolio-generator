@@ -1,10 +1,12 @@
 import json
-from django.test import TestCase
-from django.core.files.uploadedfile import SimpleUploadedFile
+
 from django.contrib.auth.models import User
-from rest_framework.test import APIClient
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase
 from rest_framework import status
-from portfolio_engine.models import Portfolio, UserProfile
+from rest_framework.test import APIClient
+
+from portfolio_engine.models import Portfolio
 
 
 class SecurityAuditTestCase(TestCase):

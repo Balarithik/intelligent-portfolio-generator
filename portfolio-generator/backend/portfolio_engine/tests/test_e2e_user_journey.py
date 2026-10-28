@@ -1,9 +1,8 @@
-import json
+from unittest.mock import patch
+
 from django.test import TestCase
-from django.contrib.auth.models import User
-from rest_framework.test import APIClient
 from rest_framework import status
-from portfolio_engine.models import Portfolio, UserProfile
+from rest_framework.test import APIClient
 
 
 class EndToEndUserJourneyTestCase(TestCase):
@@ -14,7 +13,8 @@ class EndToEndUserJourneyTestCase(TestCase):
     def setUp(self):
         self.client = APIClient()
 
-    def test_complete_user_lifecycle_and_security_controls(self):
+    @patch('portfolio_engine.services.get_genai_client', return_value=None)
+    def test_complete_user_lifecycle_and_security_controls(self, _mock_genai_client):
         # ==========================================
         # STEP 1: Registration (User Alpha)
         # ==========================================

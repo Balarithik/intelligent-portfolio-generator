@@ -23,7 +23,7 @@ export default function Navbar({
               Portfolio Generator
             </h1>
             <p className="text-xs text-border-gray font-medium">
-              Gemini 2.0 Flash • STAR Architecture
+              Gemini Flash • STAR Architecture
             </p>
           </div>
         </div>

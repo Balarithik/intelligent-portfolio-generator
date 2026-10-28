@@ -1,14 +1,15 @@
 from django.urls import path
+
 from .views import (
+    AIEnhanceView,
+    AIResumeParseView,
     HealthCheckView,
-    RegisterView,
     LoginView,
     MeView,
-    AIResumeParseView,
-    AIEnhanceView,
-    PortfolioListCreateView,
     PortfolioDetailView,
+    PortfolioListCreateView,
     PublicPortfolioDetailView,
+    RegisterView,
 )
 
 urlpatterns = [

@@ -1,13 +1,13 @@
 # Intelligent Portfolio Generator
 
-Production-ready, AI-driven portfolio builder powered by Django, React, Tailwind CSS, and Google Gemini 2.0 Flash with Pydantic Structured Outputs.
+Production-ready, AI-driven portfolio builder powered by Django, React, Tailwind CSS, and Google Gemini Flash with Pydantic Structured Outputs.
 
 ---
 
 ## Key Features
 
 - **2-Column Split-Workspace**: Instant real-time preview synchronization as you edit profile, experiences, projects, and skills.
-- **AI Resume Parsing**: Drop or paste an existing resume to automatically extract structured portfolio sections via Gemini 2.0 Flash (`parse_resume_text`).
+- **AI Resume Parsing**: Drop or paste an existing resume to automatically extract structured portfolio sections via Gemini Flash (`parse_resume_text`).
 - **STAR-Method Bullet Enhancement**: One-click AI optimization transforming raw project and work experience bullets into high-impact, quantified achievement statements tailored to your target role (`enhance_description`).
 - **Responsive Viewport Previews**: Switch seamlessly between Desktop (100%), Tablet (768px), and Mobile (375px) preview frames.
 - **Multiple Visual Themes**: Minimalist (Apple aesthetic), Executive (distinguished leadership), and Modern (accent card grids).
@@ -21,7 +21,7 @@ Production-ready, AI-driven portfolio builder powered by Django, React, Tailwind
 ### Backend
 - **Framework**: Python 3.12, Django 5.0+, Django REST Framework (DRF)
 - **Database**: SQLite with native `JSONField` support
-- **AI SDK**: Official `google-genai` SDK with `gemini-2.0-flash` & Pydantic structured output validation
+- **AI SDK**: Official `google-genai` SDK with configurable `gemini-3.8-flash` default & Pydantic structured output validation
 - **Package Manager**: Astral `uv` (`pyproject.toml` based)
 - **CORS & Auth**: `django-cors-headers`, DRF Token Authentication
 
