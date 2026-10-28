@@ -91,3 +91,4 @@ class SecurityAuditTestCase(TestCase):
         self.assertNotIn("token", data_str)
         self.assertNotIn("email", response.data)  # Root level should not have user email
         self.assertNotIn("user_id", data_str)
+

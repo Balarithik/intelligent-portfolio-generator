@@ -253,3 +253,4 @@ class EndToEndUserJourneyTestCase(TestCase):
         res_health = unauth_client.get("/api/public/health/")
         self.assertEqual(res_health.status_code, status.HTTP_200_OK)
         self.assertEqual(res_health.data["status"], "healthy")
+
