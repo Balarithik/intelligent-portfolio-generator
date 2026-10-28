@@ -1,0 +1,34 @@
+[project]
+name = "portfolio-engine-backend"
+version = "0.1.0"
+description = "Intelligent Portfolio Generator Backend with Django, DRF and Gemini AI"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.0,<6.0",
+    "djangorestframework>=3.15",
+    "django-cors-headers>=4.3",
+    "google-genai>=0.1.1",
+    "pydantic>=2.7",
+    "python-dotenv>=1.0",
+    "gunicorn>=22.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-django>=4.8",
+    "ruff>=0.4",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+

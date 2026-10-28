@@ -1,0 +1,38 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: portfolio_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=django-prod-secret-key-replace-in-real-production-environment
+      - ALLOWED_HOSTS=localhost,127.0.0.1,backend,frontend
+      - CORS_ALLOWED_ORIGINS=http://localhost,http://localhost:80,http://127.0.0.1,http://localhost:5173
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    volumes:
+      - backend_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/public/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: portfolio_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  backend_data:
+
