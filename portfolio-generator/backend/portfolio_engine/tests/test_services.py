@@ -59,7 +59,17 @@ class ServicesTestCase(TestCase):
         mock_client.models.generate_content.return_value = mock_response
         mock_get_client.return_value = mock_client
 
-        resume_raw = "Jordan Hayes\nStaff Platform Engineer\nLed multi-region platform rollout at Apex Cloud..."
+        resume_raw = (
+            "Jordan Hayes\nStaff Platform Engineer\n"
+            "Summary\nProven track record in distributed infrastructure and cloud native reliability.\n"
+            "Skills\nKubernetes, Go, Python, Terraform, Kafka\n"
+            "Experience\nLead Infrastructure Architect at Apex Cloud Systems | 2020 - Present\n"
+            "Led multi-region platform rollout.\n"
+            "- Designed multi-region cluster handling 100k req/s with 99.999% reliability.\n"
+            "- Decreased infrastructure compute spend by 28% via autoscaling policies.\n"
+            "Projects\nMeshRouter: High-throughput Envoy service mesh control plane.\n"
+            "- Go, gRPC, Docker\nhttps://github.com/apex/meshrouter"
+        )
         result = parse_resume_text(resume_raw)
 
         self.assertIn("profile", result)
@@ -75,8 +85,8 @@ class ServicesTestCase(TestCase):
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.text = (
-            "• Spearheaded migration of legacy billing services to event-driven architecture, reducing checkout latency by 45%.\n"
-            "• Implemented idempotent payment webhooks, driving transaction failure rates down by 99.8% across $12M monthly volume."
+            "• Spearheaded billing migration, reducing checkout latency by 45%.\n"
+            "• Improved webhooks, reducing transaction failures by 99.8% across $12M monthly volume."
         )
         mock_client.models.generate_content.return_value = mock_response
         mock_get_client.return_value = mock_client
@@ -84,8 +94,10 @@ class ServicesTestCase(TestCase):
         raw_text = "Worked on billing system migration and fixed webhooks."
         enhanced = enhance_description(raw_text, "Senior Backend Engineer")
 
-        self.assertIn("reducing checkout latency by 45%", enhanced)
-        self.assertIn("Spearheaded", enhanced)
+        self.assertNotIn("45%", enhanced)
+        self.assertNotIn("99.8%", enhanced)
+        self.assertNotIn("$12M", enhanced)
+        self.assertIn("Worked on billing system migration", enhanced)
 
     @patch('portfolio_engine.services.get_genai_client', return_value=None)
     def test_fallback_heuristic_when_gemini_unconfigured(self, _):
@@ -110,7 +122,29 @@ class ServicesTestCase(TestCase):
         # Test fallback enhancer
         enhanced = enhance_description("built an api", "Backend Engineer")
         self.assertTrue(enhanced.startswith("•"))
-        self.assertIn("Backend Engineer", enhanced)
+        self.assertEqual(enhanced, "• built an api")
+
+    @patch('portfolio_engine.services.get_genai_client')
+    def test_parser_does_not_treat_location_as_name_or_job_title(self, mock_get_client):
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.text = json.dumps({
+            "full_name": "Tamil",
+            "target_role": "Nadu",
+            "summary": "",
+            "skills": ["Python"],
+            "experience": [],
+            "projects": [],
+        })
+        mock_client.models.generate_content.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        parsed = parse_resume_text("Tamil Nadu\nSkills\nPython")
+
+        self.assertEqual(parsed['profile']['name'], '')
+        self.assertEqual(parsed['profile']['target_role'], '')
+        self.assertEqual(parsed['profile']['location'], 'Tamil Nadu')
+        self.assertEqual(parsed['skills'], ['Python'])
 
     def test_extract_resume_text_file(self):
         uploaded_file = SimpleUploadedFile('resume.txt', b'Jane Doe\nEngineer')
