@@ -202,7 +202,7 @@ export default function App() {
 
   // If visiting public path /p/:slug directly, show clean public view
   if (isPublicRoute && publicSlug) {
-    return <PublicPortfolioView slug={publicSlug} initialData={publicSlug === portfolio.slug ? portfolio : null} />;
+    return <PublicPortfolioView slug={publicSlug} initialData={publicSlug === portfolio.slug && portfolio.is_published ? portfolio : null} />;
   }
 
   return (
