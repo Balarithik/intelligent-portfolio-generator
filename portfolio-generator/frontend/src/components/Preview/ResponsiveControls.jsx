@@ -8,17 +8,38 @@ export default function ResponsiveControls({
   isPublished,
 }) {
   const [copied, setCopied] = useState(false);
+  const canShare = Boolean(isPublished && portfolioSlug);
 
-  const copyPublicLink = () => {
-    const origin = window.location.origin;
-    const url = `${origin}/p/${portfolioSlug || 'preview'}`;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyPublicLink = async () => {
+    if (!canShare) return;
+
+    const url = `${window.location.origin}/p/${encodeURIComponent(portfolioSlug)}`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const field = document.createElement('textarea');
+        field.value = url;
+        field.setAttribute('readonly', '');
+        field.style.position = 'fixed';
+        field.style.opacity = '0';
+        document.body.appendChild(field);
+        field.select();
+        const copiedSuccessfully = document.execCommand('copy');
+        field.remove();
+        if (!copiedSuccessfully) throw new Error('Clipboard access is unavailable.');
+      }
+
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Could not copy public portfolio URL:', error);
+    }
   };
 
   const openPublicLink = () => {
-    window.open(`/p/${portfolioSlug || 'preview'}`, '_blank');
+    if (!canShare) return;
+    window.open(`/p/${encodeURIComponent(portfolioSlug)}`, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -73,8 +94,9 @@ export default function ResponsiveControls({
         <button
           type="button"
           onClick={copyPublicLink}
-          className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-apple bg-bg-slate hover:bg-white text-dark-charcoal/80 border border-border-gray/20 transition-all"
-          title="Copy Live URL"
+          disabled={!canShare}
+          className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-apple bg-bg-slate hover:bg-white text-dark-charcoal/80 border border-border-gray/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          title={canShare ? 'Copy Live URL' : 'Publish your portfolio to enable sharing'}
         >
           {copied ? (
             <>
@@ -92,8 +114,9 @@ export default function ResponsiveControls({
         <button
           type="button"
           onClick={openPublicLink}
-          className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-apple bg-bg-slate hover:bg-white text-dark-charcoal/80 border border-border-gray/20 transition-all"
-          title="Open in new window"
+          disabled={!canShare}
+          className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-apple bg-bg-slate hover:bg-white text-dark-charcoal/80 border border-border-gray/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          title={canShare ? 'Open published portfolio' : 'Publish your portfolio to enable preview'}
         >
           <ExternalLink className="w-3.5 h-3.5 text-border-gray" />
           <span>Preview</span>
