@@ -17,7 +17,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-portfolio-generator-k
 
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,backend').split(',') if host.strip()]
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,backend,https://portfolio-generator-kd3h.onrender.com,https://intelligent-portfolio-generator.onrender.com').split(',') if host.strip()]
 
 # Application definition
 INSTALLED_APPS = [
@@ -131,7 +131,7 @@ CORS_ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.environ.get(
         'CORS_ALLOWED_ORIGINS',
-        'http://localhost:5173,http://127.0.0.1:5173,http://localhost:80,http://127.0.0.1:80,http://localhost'
+        'http://localhost:5173,http://127.0.0.1:5173,http://localhost:80,http://127.0.0.1:80,http://localhost,https://portfolio-generator-kd3h.onrender.com,https://intelligent-portfolio-generator.onrender.com'
     ).split(',')
     if origin.strip()
 ]
