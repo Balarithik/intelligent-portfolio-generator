@@ -127,13 +127,38 @@ CSRF_COOKIE_HTTPONLY = True
 
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = DEBUG
+
+
+def normalize_cors_origin(origin):
+    """
+    Normalize an origin supplied through environment variables.
+
+    CORS_ALLOWED_ORIGINS requires a scheme and network location. Render
+    environment variables are sometimes entered as a bare hostname, so
+    treat non-local bare hostnames as HTTPS origins and local development
+    hosts as HTTP origins.
+    """
+    origin = origin.strip().rstrip('/')
+    if not origin:
+        return None
+
+    if '://' not in origin:
+        hostname = origin.split('/', 1)[0].split(':', 1)[0].lower()
+        scheme = 'http' if hostname in {'localhost', '127.0.0.1'} else 'https'
+        origin = f'{scheme}://{origin}'
+
+    return origin
+
+
+_raw_cors_origins = os.environ.get(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:80,http://127.0.0.1:80,http://localhost,https://portfolio-generator-kd3h.onrender.com,https://intelligent-portfolio-generator.onrender.com'
+).split(',')
+
 CORS_ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.environ.get(
-        'CORS_ALLOWED_ORIGINS',
-        'http://localhost:5173,http://127.0.0.1:5173,http://localhost:80,http://127.0.0.1:80,http://localhost,https://portfolio-generator-kd3h.onrender.com,https://intelligent-portfolio-generator.onrender.com'
-    ).split(',')
-    if origin.strip()
+    normalized_origin
+    for raw_origin in _raw_cors_origins
+    if (normalized_origin := normalize_cors_origin(raw_origin))
 ]
 CORS_ALLOW_CREDENTIALS = True
 
