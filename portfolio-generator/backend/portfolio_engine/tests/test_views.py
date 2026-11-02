@@ -186,3 +186,33 @@ class ViewsTestCase(APITestCase):
         response = self.client.post(url, {'file': uploaded_file}, format='multipart')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_authenticated_user_can_publish_and_unpublish_portfolio(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token1.key}')
+        detail_url = reverse('portfolio-detail', kwargs={'slug': self.draft_portfolio.slug})
+        public_url = reverse('public-portfolio-detail', kwargs={'slug': self.draft_portfolio.slug})
+
+        publish_response = self.client.put(
+            detail_url,
+            {"is_published": True},
+            format='json',
+        )
+        self.assertEqual(publish_response.status_code, status.HTTP_200_OK)
+        self.assertTrue(publish_response.data["is_published"])
+
+        self.client.credentials()  # Public visitors do not need authentication.
+        public_response = self.client.get(public_url)
+        self.assertEqual(public_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(public_response.data["slug"], self.draft_portfolio.slug)
+
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token1.key}')
+        unpublish_response = self.client.put(
+            detail_url,
+            {"is_published": False},
+            format='json',
+        )
+        self.assertEqual(unpublish_response.status_code, status.HTTP_200_OK)
+        self.assertFalse(unpublish_response.data["is_published"])
+
+        self.client.credentials()
+        hidden_response = self.client.get(public_url)
+        self.assertEqual(hidden_response.status_code, status.HTTP_404_NOT_FOUND)
