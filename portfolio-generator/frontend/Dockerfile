@@ -14,7 +14,7 @@ RUN npm run build
 # Stage 2: Serve static production assets via Nginx
 FROM nginx:alpine AS runner
 
-ENV API_UPSTREAM=http://backend:8000/api/ \
+ENV API_UPSTREAM=https://intelligent-portfolio-generator.onrender.com/api/ \
     NGINX_ENVSUBST_FILTER=^API_UPSTREAM$
 
 COPY --from=builder /app/dist /usr/share/nginx/html
