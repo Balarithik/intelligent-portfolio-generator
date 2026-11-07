@@ -251,12 +251,15 @@ The sample values are in `portfolio-generator/.env.example`.
 | `GEMINI_API_KEY` | API key used by the Google Gen AI SDK | `your_gemini_api_key_here` |
 | `GEMINI_MODEL` | Gemini model identifier | `gemini-3.8-flash` in the current sample configuration |
 | `VITE_API_BASE_URL` | Frontend API base URL, embedded during the Vite build | `/api` locally and in Docker Compose |
+| `API_UPSTREAM` | Backend URL used by Nginx in the frontend Docker image | `http://backend:8000/api/` in Docker Compose |
 
 `GEMINI_API_KEY` is optional for local use. If it is missing or Gemini cannot be reached, the backend falls back to heuristic resume parsing and simple bullet formatting. AI output quality and availability will therefore be reduced without a working API key.
 
 The current backend reads `GEMINI_MODEL` from Django settings. The configured sample model is `gemini-3.8-flash`; confirm model availability and quota for your Google AI project before a production release. See the [official Gemini model list](https://ai.google.dev/gemini-api/docs/models).
 
 **Frontend environment note:** `VITE_API_BASE_URL` is a Vite build-time variable. For a Render Static Site, define it in that service's environment settings before the build. The application-root `.env` file is primarily read by Django; the local frontend uses the Vite proxy and defaults to `/api`.
+
+For the frontend Docker image, Nginx reads `API_UPSTREAM` at container startup instead. Docker Compose defaults it to `http://backend:8000/api/`; when deploying that image as a separate Render Web Service, set `API_UPSTREAM` to `https://<backend-service>.onrender.com/api/` in the frontend service's environment settings. `VITE_API_BASE_URL` alone does not configure the Nginx proxy in a prebuilt Docker image.
 
 ---
 
